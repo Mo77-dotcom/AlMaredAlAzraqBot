@@ -1,5 +1,4 @@
 import os
-import asyncio
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from telegram import Update
@@ -27,7 +26,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # إذا أرسل المستخدم صورة
         if message.photo:
             await context.bot.send_chat_action(chat_id=message.chat_id, action="upload_photo")
             
@@ -35,49 +33,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             
-            user_caption = message.caption if message.caption else "عطني خلاصة تحليل هذه الصورة بختصار."
-
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=[
-                    user_caption,
+                    "أعطني تفاصيل ومواصفات هذه الدراجة باختصار شديد جداً في حدود أسطر معدودة.",
                     {
                         "mime_type": "image/jpeg",
                         "data": bytes(file_bytes)
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. قدم إجابات مركزة، مختصرة جداً، ومباشرة بدون إطالة أو حشو لكي تظهر في رسالة واحدة قصيرة.'
+                    'system_instruction': 'أنت مساعد ذكي. أجب باختصار شديد وبسطر أو سطرين فقط، وممنوع منعاً باتاً كتابة نصوص طويلة.'
                 }
             )
             
             if response and response.text:
-                # اقتطاع الرد إجباريًا إذا زاد عن 3500 حرف لمنع أي خطأ نهائياً
-                final_text = response.text[:3500]
-                await message.reply_text(final_text)
+                # قطع النص إجبارياً عند 1000 حرف لضمان عدم حدوث خطأ الطول نهائياً
+                await message.reply_text(response.text[:1000])
             else:
-                await message.reply_text("عذراً، لم أتمكن من استخراج نتيجة من الصورة.")
+                await message.reply_text("عذراً، لم أتمكن من تحليل الصورة.")
             return
 
-        # إذا أرسل نصاً عادياً
         if message.text:
             await context.bot.send_chat_action(chat_id=message.chat_id, action="typing")
-            
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=[message.text],
-                config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. أجب باختصار.'
-                }
+                config={'system_instruction': 'أجب باختصار شديد.'}
             )
-            
             if response and response.text:
-                final_text = response.text[:3500]
-                await message.reply_text(final_text)
+                await message.reply_text(response.text[:1000])
             return
 
     except Exception as e:
-        await message.reply_text(f"حدث خطأ تقني أثناء المعالجة: {e}")
+        await message.reply_text(f"خطأ: {e}")
 
 def main():
     t = threading.Thread(target=run_health_check)
