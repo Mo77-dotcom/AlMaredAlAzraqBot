@@ -27,9 +27,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # إذا أرسل المستخدم صورة، نقوم بتحليلها وإرسال الجواب فوراً
+        # إذا أرسل المستخدم صورة
         if message.photo:
-            await message.reply_text("🔍 جاري تحليل الصورة بدقة، دقيقة واحدة...")
+            # إرسال إشعار كتابة لكي يظهر للمستخدم أن البوت يعمل الآن
+            await context.bot.send_chat_action(chat_id=message.chat_id, action="upload_photo")
             
             photo = message.photo[-1]
             file_obj = await context.bot.get_file(photo.file_id)
@@ -37,8 +38,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             user_caption = message.caption if message.caption else "حلل هذه الصورة بدقة فائقة واستخرج كافة العناصر والتفاصيل الموجودة فيها."
 
+            # استخدام gemini-2.5-flash كونه الأسرع والأكثر استقراراً في الاستجابة الفورية
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-2.5-flash',
                 contents=[
                     user_caption,
                     {
@@ -47,26 +49,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل الصور بدقة فائقة واحترافية.'
+                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل الصور بدقة فائقة وبشكل مباشر.'
                 }
             )
             
-            await message.reply_text(response.text)
+            if response and response.text:
+                await message.reply_text(response.text)
+            else:
+                await message.reply_text("عذراً، لم أتمكن من استخراج نتيجة من الصورة. جرب مرة أخرى.")
             return
 
-        # إذا أرسل نصاً عادياً (دردشة)
+        # إذا أرسل نصاً عادياً
         if message.text:
+            await context.bot.send_chat_action(chat_id=message.chat_id, action="typing")
+            
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-2.5-flash',
                 contents=[message.text],
                 config={
                     'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا.'
                 }
             )
-            await message.reply_text(response.text)
+            
+            if response and response.text:
+                await message.reply_text(response.text)
+            return
 
     except Exception as e:
-        await message.reply_text(f"خطأ تقني أثناء المعالجة: {e}")
+        await message.reply_text(f"حدث خطأ تقني أثناء معالجة الطلب: {e}")
 
 def main():
     t = threading.Thread(target=run_health_check)
