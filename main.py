@@ -35,19 +35,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=[
-                    "أعطني تفاصيل هذه الدراجة باختصار شديد جداً في سطرين.",
+                    "أعطني تفاصيل هذه الدراجة باختصار شديد جداً في سطرين فقط.",
                     {
                         "mime_type": "image/jpeg",
                         "data": bytes(file_bytes)
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت مساعد ذكي. أجب باختصار شديد ومباشر.'
+                    'system_instruction': 'أنت مساعد ذكي. أجب باختصار شديد وبسطرين كحد أقصى.'
                 }
             )
             
             if response and response.text:
-                await message.reply_text(response.text[:1000])
+                await message.reply_text(response.text[:500])
             else:
                 await message.reply_text("عذراً، لم أتمكن من تحليل الصورة.")
             return
@@ -60,7 +60,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 config={'system_instruction': 'أجب باختصار شديد.'}
             )
             if response and response.text:
-                await message.reply_text(response.text[:1000])
+                await message.reply_text(response.text[:500])
             return
 
     except Exception as e:
