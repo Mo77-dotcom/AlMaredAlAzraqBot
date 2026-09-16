@@ -21,14 +21,6 @@ def run_health_check():
     server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
     server.serve_forever()
 
-async def send_long_message(message, text):
-    max_length = 4000
-    if len(text) <= max_length:
-        await message.reply_text(text)
-    else:
-        for i in range(0, len(text), max_length):
-            await message.reply_text(text[i:i+max_length])
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if not message:
@@ -43,7 +35,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             
-            user_caption = message.caption if message.caption else "اكتب وصفاً وتحليلاً مفيداً وواضحاً لهذه الصورة."
+            user_caption = message.caption if message.caption else "عطني خلاصة تحليل هذه الصورة بختصار."
 
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
@@ -55,12 +47,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. قدم إجابات دقيقة ومنظمة، وتجنب الإسهاب المفرط لكي لا تتجاوز الرسالة الحدود المسموحة.'
+                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. قدم إجابات مركزة، مختصرة جداً، ومباشرة بدون إطالة أو حشو لكي تظهر في رسالة واحدة قصيرة.'
                 }
             )
             
             if response and response.text:
-                await send_long_message(message, response.text)
+                # اقتطاع الرد إجباريًا إذا زاد عن 3500 حرف لمنع أي خطأ نهائياً
+                final_text = response.text[:3500]
+                await message.reply_text(final_text)
             else:
                 await message.reply_text("عذراً، لم أتمكن من استخراج نتيجة من الصورة.")
             return
@@ -73,12 +67,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 model='gemini-2.5-flash',
                 contents=[message.text],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا.'
+                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. أجب باختصار.'
                 }
             )
             
             if response and response.text:
-                await send_long_message(message, response.text)
+                final_text = response.text[:3500]
+                await message.reply_text(final_text)
             return
 
     except Exception as e:
