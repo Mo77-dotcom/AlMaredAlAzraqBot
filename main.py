@@ -21,6 +21,15 @@ def run_health_check():
     server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
     server.serve_forever()
 
+# دالة ذكية لتقسيم الرسائل الطويلة حتى لا تتخطى حد تيليجرام
+async def send_long_message(message, text):
+    max_length = 4000
+    if len(text) <= max_length:
+        await message.reply_text(text)
+    else:
+        for i in range(0, len(text), max_length):
+            await message.reply_text(text[i:i+max_length])
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if not message:
@@ -29,7 +38,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # إذا أرسل المستخدم صورة
         if message.photo:
-            # إرسال إشعار كتابة لكي يظهر للمستخدم أن البوت يعمل الآن
             await context.bot.send_chat_action(chat_id=message.chat_id, action="upload_photo")
             
             photo = message.photo[-1]
@@ -38,7 +46,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             user_caption = message.caption if message.caption else "حلل هذه الصورة بدقة فائقة واستخرج كافة العناصر والتفاصيل الموجودة فيها."
 
-            # استخدام gemini-2.5-flash كونه الأسرع والأكثر استقراراً في الاستجابة الفورية
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=[
@@ -49,12 +56,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل الصور بدقة فائقة وبشكل مباشر.'
+                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل الصور بدقة فائقة وبشكل مباشر ومنسق.'
                 }
             )
             
             if response and response.text:
-                await message.reply_text(response.text)
+                await send_long_message(message, response.text)
             else:
                 await message.reply_text("عذراً، لم أتمكن من استخراج نتيجة من الصورة. جرب مرة أخرى.")
             return
@@ -72,11 +79,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             
             if response and response.text:
-                await message.reply_text(response.text)
+                await send_long_message(message, response.text)
             return
 
     except Exception as e:
-        await message.reply_text(f"حدث خطأ تقني أثناء معالجة الطلب: {e}")
+        await message.reply_text(f"حدث خطأ تقني أثناء المعالجة: {e}")
 
 def main():
     t = threading.Thread(target=run_health_check)
