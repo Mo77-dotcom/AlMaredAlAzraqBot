@@ -29,7 +29,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # إذا أرسل المستخدم صورة، نقوم بتحليلها وإرسال الجواب فوراً
         if message.photo:
-            # إعلام المستخدم أن العمل جاري
             await message.reply_text("🔍 جاري تحليل الصورة بدقة، دقيقة واحدة...")
             
             photo = message.photo[-1]
@@ -80,5 +79,5 @@ def main():
     print("Bot is polling...")
     app.run_polling()
 
-if __name__ ==- "__main__":
+if __name__ == "__main__":
     main()
