@@ -21,7 +21,6 @@ def run_health_check():
     server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
     server.serve_forever()
 
-# دالة ذكية لتقسيم الرسائل الطويلة حتى لا تتخطى حد تيليجرام
 async def send_long_message(message, text):
     max_length = 4000
     if len(text) <= max_length:
@@ -44,7 +43,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             
-            user_caption = message.caption if message.caption else "حلل هذه الصورة بدقة فائقة واستخرج كافة العناصر والتفاصيل الموجودة فيها."
+            user_caption = message.caption if message.caption else "اكتب وصفاً وتحليلاً مفيداً وواضحاً لهذه الصورة."
 
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
@@ -56,14 +55,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل الصور بدقة فائقة وبشكل مباشر ومنسق.'
+                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. قدم إجابات دقيقة ومنظمة، وتجنب الإسهاب المفرط لكي لا تتجاوز الرسالة الحدود المسموحة.'
                 }
             )
             
             if response and response.text:
                 await send_long_message(message, response.text)
             else:
-                await message.reply_text("عذراً، لم أتمكن من استخراج نتيجة من الصورة. جرب مرة أخرى.")
+                await message.reply_text("عذراً، لم أتمكن من استخراج نتيجة من الصورة.")
             return
 
         # إذا أرسل نصاً عادياً
