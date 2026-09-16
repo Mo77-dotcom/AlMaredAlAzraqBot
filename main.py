@@ -26,26 +26,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # معالجة الصور بالطريقة الصحيحة والآمنة
+        # معالجة الصور بالطريقة القياسية والصحيحة
         if message.photo:
             await context.bot.send_chat_action(chat_id=message.chat_id, action="upload_photo")
             photo = message.photo[-1]
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             
-            prompt_text = message.caption if message.caption else "حلل هذه الصورة بالتفصيل وباختصار."
+            prompt_text = message.caption if message.caption else "حلل هذه الصورة بالتفصيل وبشكل مختصر."
             
-            # رفع الصورة كجزء بايتات مباشر بالطريقة المتوافقة تماماً مع الـ SDK الجديد
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=[
                     prompt_text,
-                    client.types.Part.from_bytes(
-                        data=bytes(file_bytes),
-                        mime_type="image/jpeg",
-                    ),
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": bytes(file_bytes)
+                        }
+                    }
                 ],
-                config={'system_instruction': 'أنت مساعد ذكي متعدد الوسائط. قدم إجابات دقيقة ومفيدة.'}
+                config={'system_instruction': 'أنت مساعد ذكي متعدد الوسائط. أجب باختصار ودقة.'}
             )
             
             if response and response.text:
@@ -60,14 +61,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=[message.text],
-                config={'system_instruction': 'أنت مساعد ذكي ومحترف.'}
+                config={'system_instruction': 'أجب باختصار شديد.'}
             )
             if response and response.text:
                 await message.reply_text(response.text[:3500])
             return
 
     except Exception as e:
-        await message.reply_text(f"حدث خطأ أثناء المعالجة: {str(e)[:200]}")
+        await message.reply_text(f"حدث خطأ: {str(e)[:150]}")
 
 def main():
     t = threading.Thread(target=run_health_check)
