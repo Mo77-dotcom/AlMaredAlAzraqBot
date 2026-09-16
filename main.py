@@ -46,6 +46,18 @@ def main():
 
 if __name__ == "__main__":
     main()
+    t = threading.Thread(target=run_health_check)
+    t.daemon = True
+    t.start()
+
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    
+    print("Bot is polling...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
         except Exception as e:
     print(f"DETAILED AI ERROR: {e}")  # طباعة الخطأ بالحرف في السجلات
     await update.message.reply_text(f"خطأ تقني: {e}") # إرسال الخطأ لتراه مباشرة في تليجرام
