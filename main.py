@@ -1,55 +1,55 @@
 import os
 import asyncio
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from threading import Thread
+import threading
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, CommandHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 import google.generativeai as genai
 
+# قراءة المفاتيح من بيئة العمل
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
+# إعداد نموذج جيميناي مع شخصية المساعد لطلاب سوريا
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
-    system_instruction="أنت المارد الأزرق، مساعد ذكي لطلاب الجامعات في سوريا. أجب بأسلوب متعاون ودقيق."
+    system_instruction="أنت المارد الأزرق 🧞، مساعدك الذكي لطلاب الجامعات في سوريا. أجب بأسلوب ذكي وودود ودقيق."
 )
 
+# خادم وهمي لإبقاء الخدمة نشطة 24/7 على Render
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is active and running 24/7!")
+        self.wfile.write(b"Bot is active 24/7!")
 
-def run_health_check_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+def run_health_check():
+    server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
     server.serve_forever()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "أهلاً بك! أنا المارد الأزرق 🧞‍♂️، مساعدك الذكي لطلاب الجامعات في سوريا.\n\n"
-        "أنا هنا لمساعدتك في استفساراتك الجامعية والأكاديمية. تفضل بطرح سؤالك!"
-    )
-    await update.message.reply_text(welcome_text)
-
+# دالة التعامل مع رسائل المستخدم عبر تليجرام
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
         response = model.generate_content(user_text)
-        bot_reply = response.text if response.text else "عذراً، لم أستطع معالجة الإجابة حالياً."
+        await update.message.reply_text(response.text)
     except Exception as e:
-        print(f"Error calling Gemini: {e}")
-        bot_reply = "حدث خطأ أثناء الاتصال بالذكاء الاصطناعي، يرجى المحاولة لاحقاً."
-    
-    await update.message.reply_text(bot_reply)
+        print(f"Error connecting to AI: {e}")
+        await update.message.reply_text("حدث خطأ أثناء الاتصال بالذكاء الاصطناعي، يرجى المحاولة لاحقاً.")
 
-if __name__ == '__main__':
-    Thread(target=run_health_check_server, daemon=True).start()
-    
+def main():
+    # تشغيل خادم الفحص الصحي في الخلفية
+    t = threading.Thread(target=run_health_check)
+    t.daemon = True
+    t.start()
+
+    # تشغيل بوت تليجرام
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     
-    print("Al-Mared Al-Azraq Bot is running...")
+    print("Bot is polling...")
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
