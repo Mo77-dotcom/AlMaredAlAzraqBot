@@ -34,9 +34,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         response = model.generate_content(user_text)
         await update.message.reply_text(response.text)
-    except Exception as e:
-        print(f"Error connecting to AI: {e}")
-        await update.message.reply_text("حدث خطأ أثناء الاتصال بالذكاء الاصطناعي، يرجى المحاولة لاحقاً.")
+        except Exception as e:
+    print(f"DETAILED AI ERROR: {e}")  # طباعة الخطأ بالحرف في السجلات
+    await update.message.reply_text(f"خطأ تقني: {e}") # إرسال الخطأ لتراه مباشرة في تليجرام
+
 
 def main():
     # تشغيل خادم الفحص الصحي في الخلفية
