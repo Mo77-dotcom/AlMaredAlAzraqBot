@@ -1,6 +1,6 @@
 import os
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from google import genai
@@ -28,27 +28,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if message.photo:
             await context.bot.send_chat_action(chat_id=message.chat_id, action="upload_photo")
-            
             photo = message.photo[-1]
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-3.6-flash',
                 contents=[
-                    "أعطني تفاصيل ومواصفات هذه الدراجة باختصار شديد جداً في حدود أسطر معدودة.",
+                    "أعطني تفاصيل هذه الدراجة باختصار شديد جداً في سطرين.",
                     {
                         "mime_type": "image/jpeg",
                         "data": bytes(file_bytes)
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت مساعد ذكي. أجب باختصار شديد وبسطر أو سطرين فقط، وممنوع منعاً باتاً كتابة نصوص طويلة.'
+                    'system_instruction': 'أنت مساعد ذكي. أجب باختصار شديد ومباشر.'
                 }
             )
             
             if response and response.text:
-                # قطع النص إجبارياً عند 1000 حرف لضمان عدم حدوث خطأ الطول نهائياً
                 await message.reply_text(response.text[:1000])
             else:
                 await message.reply_text("عذراً، لم أتمكن من تحليل الصورة.")
@@ -57,7 +55,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if message.text:
             await context.bot.send_chat_action(chat_id=message.chat_id, action="typing")
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-3.6-flash',
                 contents=[message.text],
                 config={'system_instruction': 'أجب باختصار شديد.'}
             )
