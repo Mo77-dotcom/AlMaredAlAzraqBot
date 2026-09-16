@@ -23,18 +23,19 @@ def run_health_check():
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
+    if not message:
+        return
+
     user_text = message.caption or message.text or ""
 
     try:
-        file_bytes = None
-        mime_type = "image/jpeg"
-
-        # 1. التقاط الصورة فوراً (سواء أُرسلت وحدها أو مع تعليق)
+        # 1. معالجة الصور (سواء أُرسلت لوحدها أو مع تعليق تحتها)
         if message.photo:
             photo = message.photo[-1]
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             
+            # النص الافتراضي للتحليل إذا لم يكتب المستخدم تعليقاً
             prompt_text = user_text if user_text else "حلل هذه الصورة بدقة فائقة واستخرج كافة التفاصيل والعناصر الموجودة فيها."
             
             response = client.models.generate_content(
@@ -53,7 +54,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message.reply_text(response.text)
             return
 
-        # 2. التقاط المستندات والملفات (PDF وغيرها)
+        # 2. معالجة المستندات والملفات (PDF وغيرها)
         elif message.document:
             file_obj = await context.bot.get_file(message.document.file_id)
             file_bytes = await file_obj.download_as_bytearray()
@@ -71,13 +72,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     }
                 ],
                 config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل بدقة فائقة الصور والملفات وتجيب باحترافية.'
+                    'system_instruction': 'أنت المارد الأزرق ([], مساعد ذكي لطلاب الجامعات في سوريا. تحلل بدقة فائقة الصور والملفات وتجيب باحترافية.'
                 }
             )
             await message.reply_text(response.text)
             return
 
-        # 3. إذا أرسل نصاً عادياً (فقط للدردشة إذا أراد)
+        # 3. معالجة النصوص العادية
         elif user_text:
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
@@ -97,7 +98,9 @@ def main():
     t.start()
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.VIDEO | filters.ATTACHMENT) & (~filters.COMMAND), handle_message))
+    
+    # استخدام فلتر عام شامل لالتقاط كل الرسائل بدون استثناء
+    app.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), handle_message))
     
     print("Bot is polling...")
     app.run_polling()
