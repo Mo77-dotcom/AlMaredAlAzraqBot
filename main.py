@@ -23,34 +23,54 @@ def run_health_check():
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
-    user_text = message.caption or message.text or "حلل هذا الملف بدقة واستخرج أبرز النقاط."
+    user_text = message.caption or message.text or "قم بتحليل هذا الملف أو الصورة أو الفيديو بدقة واستخرج كافة التفاصيل والمحتوى."
     
     try:
         contents = [user_text]
-        
-        # التقاط الملف المرفق (PDF أو مستند) بطريقة صحيحة ودقيقة
-        if message.document:
-            file = await context.bot.get_file(message.document.file_id)
-            file_bytes = await file.download_as_bytearray()
-            
+        file_bytes = None
+        mime_type = "application/pdf"
+
+        # 1. التعامل مع الصور المرفقة
+        if message.photo:
+            photo = message.photo[-1] # اختيار أعلى دقة للصورة
+            file_obj = await context.bot.get_file(photo.file_id)
+            file_bytes = await file_obj.download_as_bytearray()
+            mime_type = "image/jpeg"
+
+        # 2. التعامل مع ملفات الـ PDF والمستندات
+        elif message.document:
+            file_obj = await context.bot.get_file(message.document.file_id)
+            file_bytes = await file_obj.download_as_bytearray()
+            mime_type = message.document.mime_type or "application/pdf"
+
+        # 3. التعامل مع ملفات الفيديو والصوت
+        elif message.video or message.audio or message.effective_attachment:
+            attachment = message.video or message.audio or message.effective_attachment
+            if hasattr(attachment, 'file_id'):
+                file_obj = await context.bot.get_file(attachment.file_id)
+                file_bytes = await file_obj.download_as_bytearray()
+                mime_type = getattr(attachment, 'mime_type', 'video/mp4')
+
+        # إرفاق البيانات إن وجدت إلى محتوى الطلب للذكاء الاصطناعي
+        if file_bytes:
             contents.append({
-                "mime_type": message.document.mime_type or "application/pdf",
+                "mime_type": mime_type,
                 "data": bytes(file_bytes)
             })
 
-        # إرسال المحتوى والملف إلى نموذج gemini-3.6-flash
+        # إرسال البيانات للنموذج gemini-3.6-flash
         response = client.models.generate_content(
             model='gemini-3.6-flash',
             contents=contents,
             config={
-                'system_instruction': 'أنت المارد الأزرق 🧞، مساعدك الذكي لطلاب الجامعات في سوريا. قم بتحليل الملفات والأسئلة بدقة واحترافية.'
+                'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل بدقة فائقة الصور، ملفات الـ PDF، والفيديوهات وتجيب بوضوح واحترافية.'
             }
         )
         
         await message.reply_text(response.text)
         
     except Exception as e:
-        await message.reply_text(f"خطأ تقني أثناء معالجة الملف: {e}")
+        await message.reply_text(f"خطأ تقني أثناء معالجة الملف أو الوسائط: {e}")
 
 def main():
     t = threading.Thread(target=run_health_check)
@@ -59,8 +79,8 @@ def main():
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
-    # فلتر شامل يلتقط النصوص والملفات والمستندات بكافة أنواعها
-    app.add_handler(MessageHandler((filters.TEXT | filters.Document.ALL) & (~filters.COMMAND), handle_message))
+    # فلاتر شاملة تلتقط النصوص، الصور، المستندات، والفيديوهات والملفات بكل أنواعها
+    app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.VIDEO | filters.ATTACHMENT) & (~filters.COMMAND), handle_message))
     
     print("Bot is polling...")
     app.run_polling()
