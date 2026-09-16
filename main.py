@@ -11,7 +11,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# قاموس لتخزين آخر ملف أرسله المستخدم مؤقتاً لحين طلب تحليله أو تعديله
 user_last_file = {}
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -32,61 +31,71 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         file_bytes = None
         mime_type = "application/pdf"
+        is_new_file = False
 
-        # 1. التقاط الصور المرفقة وحفظها في الذاكرة المؤقتة للمستخدم
+        # 1. فحص الصور
         if message.photo:
             photo = message.photo[-1]
             file_obj = await context.bot.get_file(photo.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             mime_type = "image/jpeg"
-            user_last_file[user_id] = {"data": bytes(file_bytes), "mime_type": mime_type}
-            await message.reply_text("📥 تم استلام الصورة بنجاح! أنا بانتظار أمرك (مثل: حلل الصورة، أو عدل عليها...).")
-            return
+            is_new_file = True
 
-        # 2. التقاط مستندات PDF أو الملفات وحفظها مؤقتاً
+        # 2. فحص المستندات والـ PDF
         elif message.document:
             file_obj = await context.bot.get_file(message.document.file_id)
             file_bytes = await file_obj.download_as_bytearray()
             mime_type = message.document.mime_type or "application/pdf"
-            user_last_file[user_id] = {"data": bytes(file_bytes), "mime_type": mime_type}
-            await message.reply_text("📥 تم استلام الملف (PDF) بنجاح! تفضل بأمرني بما تريد فعله به (تليخيص، تحليل، استخراج...).")
-            return
+            is_new_file = True
 
-        # 3. التقاط الفيديوهات أو الصوتيات وحفظها مؤقتاً
+        # 3. فحص الفيديوهات أو الصوتيات
         elif message.video or message.audio or message.effective_attachment:
             attachment = message.video or message.audio or message.effective_attachment
             if hasattr(attachment, 'file_id'):
                 file_obj = await context.bot.get_file(attachment.file_id)
                 file_bytes = await file_obj.download_as_bytearray()
                 mime_type = getattr(attachment, 'mime_type', 'video/mp4')
-                user_last_file[user_id] = {"data": bytes(file_bytes), "mime_type": mime_type}
-                await message.reply_text("📥 تم استلام الفيديو بنجاح! اكتب لي الآن أمرك (مثل: حلله، استخرج أفكاره...).")
+                is_new_file = True
+
+        # إذا أرسل المستخدم ملفاً جديداً
+        if is_new_file and file_bytes:
+            user_last_file[user_id] = {"data": bytes(file_bytes), "mime_type": mime_type}
+            
+            # إذا كان هناك نص مع الملف (Caption)، قم بتحليله فوراً دون انتظار!
+            if user_text and user_text not in ["حلل", "حلله", "حللي", "تحليل"]:
+                contents = [user_text, {"mime_type": mime_type, "data": bytes(file_bytes)}]
+                response = client.models.generate_content(
+                    model='gemini-3.6-flash',
+                    contents=contents,
+                    config={'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل بدقة فائقة الملفات والصور والفيديوهات.'}
+                )
+                await message.reply_text(response.text)
+                return
+            else:
+                await message.reply_text("📥 تم استلام الملف بنجاح! تفضل بأمرني الآن (مثال: حلل الملف، استخرج النقاط...).")
                 return
 
-        # 4. إذا أرسل المستخدم نصاً (مثل "حلله" أو "ما رأيك") بعد إرسال الملف
+        # إذا أرسل نصاً استكمائياً (مثل "حلله" أو "تحليل")
         if user_text:
             contents = [user_text]
-            
-            # التحقق إذا كان هناك ملف مرفق مسبقاً في الذاكرة المؤقتة لهذا المستخدم
             if user_id in user_last_file:
                 contents.append({
                     "mime_type": user_last_file[user_id]["mime_type"],
                     "data": user_last_file[user_id]["data"]
                 })
+            else:
+                await message.reply_text("⚠️ لم أجد أي ملف محفوظ في الذاكرة. يرجى إرسال الملف أولاً أو إرفاقه مع رسالتك.")
+                return
 
-            # إرسال الطلب لنموذج gemini-3.6-flash
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=contents,
-                config={
-                    'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل بدقة فائقة الملفات، الصور، والفيديوهات المستلمة وتجيب باحترافية.'
-                }
+                config={'system_instruction': 'أنت المارد الأزرق 🧞، مساعد ذكي لطلاب الجامعات في سوريا. تحلل بدقة فائقة الملفات والصور والفيديوهات.'}
             )
-            
             await message.reply_text(response.text)
-            
+
     except Exception as e:
-        await message.reply_text(f"خطأ تقني أثناء معالجة الطلب: {e}")
+        await message.reply_text(f"خطأ تقني أثناء المعالجة: {e}")
 
 def main():
     t = threading.Thread(target=run_health_check)
@@ -94,8 +103,6 @@ def main():
     t.start()
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    
-    # فلتر شامل لالتقاط كل أنواع الرسائل والملفات
     app.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.VIDEO | filters.ATTACHMENT) & (~filters.COMMAND), handle_message))
     
     print("Bot is polling...")
